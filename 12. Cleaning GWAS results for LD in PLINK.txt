@@ -1,0 +1,112 @@
+##############################################################################
+# Getting MAF doc . sh - submit script
+##############################################################################
+
+#!/bin/bash
+#PBS -l walltime=2:00:00
+#PBS -o maf.txt
+#PBS -me
+#PBS -l nodes=1:ppn=4
+#
+#---------------------------------------------
+#
+cd "${HOME}"
+#
+#---------------------------------------------
+
+# take MAF from snp-stats to filter GWAS reults
+
+for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22
+do
+awk 'NR>=10 {print $2, $14}' **/data.chr"$i".snp-stats > chr"$i".txt
+done
+
+for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22
+do
+cat chr"$i".txt >> MAF.txt
+rm chr"$i".txt
+done
+
+##############################################################################
+# Getting INFO doc . sh - submit script
+##############################################################################
+
+#!/bin/bash
+#PBS -l walltime=2:00:00
+#PBS -o maf.txt
+#PBS -me
+#PBS -l nodes=1:ppn=4
+#
+#---------------------------------------------
+#
+cd "${HOME}"
+#
+#---------------------------------------------
+
+# take info from snp-stats to filter GWAS reults
+
+for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22
+do
+awk 'NR>=10 {print $2, $17, $18}' **/data.chr"$i".snp-stats > chr"$i".txt
+done
+
+for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22
+do
+cat chr"$i".txt >> info.txt
+rm chr"$i".txt
+done
+
+
+##############################################################################
+# MAking GWAS more concise to work with - in Putty
+##############################################################################
+
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' NEB.plink > NEBR.txt
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' NEBnochip.plink > NEBnochipR.txt
+
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' AFB.plink > AFBR.txt 
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' AFBnochip.plink > AFBnochipR.txt
+
+##############################################################################
+# MAF filtering checks
+##############################################################################
+
+# filter MAF on 0.01
+awk 'NR==1||$2>0.01 {print $1, $2}' MAF.txt > MAFfiltered.txt
+
+##############################################################################
+# info filtering checks
+##############################################################################
+
+# filter info on o.8
+awk 'NR==1||$2>0.8 {print $1, $2}' info.txt > infofiltered.txt
+
+#################################################################################
+## MAF Filtering 
+#################################################################################
+
+# Like above but just want rsid column with no header
+awk '$2>0.01 {print $1}' MAF.txt > MAFfiltered.txt
+wc -l MAFfiltered.txt
+
+# Grep this snp list (which contains only snps with appropriate MAF) from GWAS results
+grep -wFf MAFfiltered.txt AFBR.txt > AFBfilteredP.txt
+grep -wFf MAFfiltered.txt AFBnochipR.txt > AFBNCfilteredP.txt
+grep -wFf MAFfiltered.txt NEBR.txt > NEBfilteredP.txt
+grep -wFf MAFfiltered.txt NEBnochipR.txt > NEBNCfilteredP.txt
+
+#################################################################################
+## INFO Filtering 
+#################################################################################
+
+# Like above but just want rsid column with no header
+awk '$2>0.8 {print $1}' info.txt > infofiltered.txt
+wc -l infofiltered.txt
+
+# Grep this snp list 
+grep -wFf infofiltered.txt AFBfilteredP.txt > AFBfilteredP2.txt
+grep -wFf infofiltered.txt AFBNCfilteredP.txt > AFBNCfilteredP2.txt
+grep -wFf infofiltered.txt NEBfilteredP.txt > NEBfilteredP2.txt
+grep -wFf infofiltered.txt NEBNCfilteredP.txt > NEBNCfilteredP2.txt
+
+#then run LD score script

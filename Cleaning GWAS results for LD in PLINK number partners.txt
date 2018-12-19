@@ -1,0 +1,47 @@
+##############################################################################
+# MAking GWAS more concise
+##############################################################################
+
+# get GWAS into smaller text format to work with
+
+# tenth percentile all covariates
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' ten_nsp.plink > TENNSPR.txt
+
+# tenth percentile without chip
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' ten_nsp_nochip.plink > TENNSPnochipR.txt
+
+# number of partners all covariates
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' num_partners.plink > NUMPARTNERSR.txt 
+
+# number of partners no chip
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $3, $4, $5, $7, $8, $11}' num_partners_nochip.plink > NUMPARTNERSnochipR.txt
+
+
+#################################################################################
+## MAF Filtering - START HERE NEXT TIME
+#################################################################################
+
+awk '$2>0.01 {print $1}' MAF.txt > MAFfiltered.txt
+wc -l MAFfiltered.txt
+
+grep -wFf MAFfiltered.txt TENNSPR.txt > TNSPfilteredP.txt
+grep -wFf MAFfiltered.txt TENNSPnochipR.txt > TNSPNCfilteredP.txt
+grep -wFf MAFfiltered.txt NUMPARTNERSR.txt > NPfilteredP.txt
+grep -wFf MAFfiltered.txt NUMPARTNERSnochipR.txt > NPNCfilteredP.txt
+
+
+#################################################################################
+## INFO Filtering 
+#################################################################################
+
+awk '$2>0.8 {print $1}' info.txt > infofiltered.txt
+wc -l infofiltered.txt
+
+grep -wFf infofiltered.txt TNSPfilteredP.txt > TNSPfilteredP2.txt
+grep -wFf infofiltered.txt TNSPNCfilteredP.txt > TNSPNCfilteredP2.txt
+grep -wFf infofiltered.txt NPfilteredP.txt > NPfilteredP2.txt
+grep -wFf infofiltered.txt NPNCfilteredP.txt > NPNCfilteredP2.txt
+
+
+
+then run LD score script

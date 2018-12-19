@@ -1,0 +1,162 @@
+# This script is adapted from code provided by Hannah Jones and Hannah Sallis
+# This script relates to github repository - https://github.com/bulik/ldsc/wiki/Heritability-and-Genetic-Correlation
+# Need to clone this repository from github
+
+#############################################################
+# Download pre-computed LD Scores:                          #
+#############################################################
+## These LD Scores were computed using 1000 Genomes European data and are appropriate for use with European GWAS data. 
+## For GWAS from other populations, you will need to compute population-appropriate LD Scores.
+
+## Download
+wget https://data.broadinstitute.org/alkesgroup/LDSCORE/eur_w_ld_chr.tar.bz2
+tar -jxvf eur_w_ld_chr.tar.bz2
+
+#############################################################
+# You now need your summary statistics files                #
+#############################################################
+# download GWAS data for exposures unzip files 
+
+## The ldsc sumstats format requires:
+## SNP, A1 (effect), A2 (other), Sample size, p value, statistic (OR, beta, log(OR), z-score...)
+## Would also be good to have INFO column
+
+## Note that some summary statistic files do not have a signed summary statistic, but are coded so that A1 
+## is always the trait- or risk-increasing allele. This is equivalent to providing a signed summary statistic, 
+## and munge_sumstats.py will process such files if called with the --a1-inc1 flag
+
+## Remove poorly-imputed SNPs by filtering on INFO > 0.9. Some summary statistics have INFO columns, 
+## so munge_sumstats.py will automatically perform the filtering. If you're using summary statistics 
+## that don't come with an INFO column, we recommend filtering to HapMap3 SNPs (using the --merge or --merge-alleles flags), 
+## because these seem to be well-imputed in most studies.
+
+# HapMap3 SNPs, alleles file, i.e. list of snps and alleles, contains 1217312 snps - heading: SNP A1 A2
+wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
+bunzip2 w_hm3.snplist.bz2
+
+# EXPOSURE
+# Schizophrenia data (headings: SNP A1 A2 INFO OR SE P), ? SNPs
+awk 'BEGIN {print "SNP","A1","A2", "INFO","log_odds","SE","P"} NR!=1  {print $2, $4, $5, $8, $9 ,$10, $11}' daner_PGC_SCZ49.sh2_mds10_1000G-frq_2  > exposure.txt
+#sed '1d' PGC_SCZ_data_logOR.txt > tmpfile; mv tmpfile PGC_SCZ_data_logOR.txt
+#echo $'SNP A1 A2 INFO log_odds SE P' | cat - PGC_SCZ_data_logOR.txt > PGC_SCZ_data_logOR2.txt; mv PGC_SCZ_data_logOR{2,}.txt
+
+# OUTCOME 1
+# NEB data adjusted all covariates (age, sex, chip, 10PCs)
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $1, $3, $2, $4, $5, $6}' NEBfilteredP2.txt > outcome1.txt
+
+# OUTCOME 2
+# NEB data adjusted all covariates (age, sex, chip, 10PCs)
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $1, $3, $2, $4, $5, $6}' NEBNCfilteredP2.txt > outcome2.txt
+
+# OUTCOME 3
+# AFB data adjusted all covariates accept age (sex, chip, 10PCs)
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $1, $3, $2, $4, $5, $6}' AFBfilteredP2.txt > outcome3.txt
+
+# OUTCOME 4 
+# AFB no chip adjustment
+awk 'BEGIN {print "SNP","A1","A2","N", "beta","P"} NR!=1 {print $1, $3, $2, $4, $5, $6}' AFBNCfilteredP2.txt > outcome4.txt
+
+# OUTCOME 5 (Education)
+awk 'BEGIN {print "SNP","A1","A2","beta","P"} NR!=1 {print $1, $4, $5, $7, $9}' EduYears_Main.txt > outcome5.txt
+
+#############################################################
+# Check that alleles in summary statistic files             #
+# match alleles in in the data used to estimate LD score    #
+#############################################################
+
+#########
+# Schiz has an info column so don't need the --merge-alleles bit
+munge_sumstats.py \
+--sumstats exposure.txt \
+--N 150064 \
+--a1-inc \
+--out schiz_snps 
+
+## Outcome 1: NEB
+# Using HM3 snps because no info col in NEB
+munge_sumstats.py \
+--sumstats outcome1.txt \
+--merge-alleles w_hm3.snplist \
+--out neb_snps 
+
+## Outcome 2: NEB no chip
+# Using HM3 snps because no info col in NEB no chip
+munge_sumstats.py \
+--sumstats outcome2.txt \
+--merge-alleles w_hm3.snplist \
+--out neb_nochip_snps
+
+## Outcome 3: AFB
+# Using HM3 snps because no info col in AFB
+munge_sumstats.py \
+--sumstats outcome3.txt \
+--merge-alleles w_hm3.snplist \
+--out afb_snps 
+
+## Outcome 4: AFB no chip
+# Using HM3 snps because no info col in AFB no chip
+munge_sumstats.py \
+--sumstats outcome4.txt \
+--merge-alleles w_hm3.snplist \
+--out afb__nochip_snps 
+
+## Outcome 5: Education
+# Using HM3 snps because no info col in Education
+munge_sumstats.py \
+--sumstats outcome5.txt \
+--N 405072 \
+--merge-alleles w_hm3.snplist \
+--out edu_snps 
+
+
+#############################################################
+# LD score regression                                       #
+#############################################################
+
+######### Using HapMap3 SNPs
+ldsc.py \
+--rg schiz_snps.sumstats.gz,neb_snps.sumstats.gz,neb_nochip_snps.sumstats.gz,afb_snps.sumstats.gz,afb__nochip_snps.sumstats.gz,edu_snps.sumstats.gz \
+--ref-ld-chr ~/eur_w_ld_chr/ \
+--w-ld-chr ~/eur_w_ld_chr/ \
+--out schiz_neb_afb_edu
+
+ldsc.py \
+--rg edu_snps.sumstats.gz,neb_snps.sumstats.gz,neb_nochip_snps.sumstats.gz,afb_snps.sumstats.gz,afb__nochip_snps.sumstats.gz,schiz_snps.sumstats.gz \
+--ref-ld-chr ~/eur_w_ld_chr/ \
+--w-ld-chr ~/eur_w_ld_chr/ \
+--out edu_neb_afb_schiz
+
+
+## If only interested in heritability use this instead:
+#ldsc.py \
+#--h2 schiz_snps.sumstats.gz \
+#--ref-ld-chr eur_w_ld_chr/ \
+#--w-ld-chr eur_w_ld_chr/ \
+#--out scz_h2
+
+
+################
+# Remove files #
+################
+
+# Remove the files made by munge stats etc - reduce amount of data and can easily be remade 
+
+rm schiz_snps.log 
+rm neb_snps.log 
+rm neb_nochip_snps.log
+rm afb_snps.log
+rm afb_no_chip_snps.log
+rm edu_snps.log
+rm exposure.txt
+rm outcome1.txt 
+rm outcome3.txt
+rm outcome4.txt
+rm outcome5.txt
+rm schiz_snps.sumstats.gz
+rm neb_snps.sumstats.gz
+rm afb_snps.sumstats.gz
+rm afb__nochip_snps.sumstats.gz
+rm edu_snps.sumstats.gz
+
+grep 'WARNING' *log
+
